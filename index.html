@@ -1,0 +1,525 @@
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+
+// Lucide-reactのアイコンをインポート
+import { PlayCircle, Lightbulb, ArrowLeft, ArrowRight, RefreshCcw, Check, Hand } from 'lucide-react';
+
+// アプリケーション全体
+const App = () => {
+  const [currentLevel, setCurrentLevel] = useState('select'); // 'select', 'level1', 'level2', 'level3'
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [problem, setProblem] = useState(null); // { hour: 1-12, minute: 0-59 }
+  const [userTime, setUserTime] = useState({ hour: 12, minute: 0 }); // ユーザーが設定した時間（レベル3用）
+  const [feedback, setFeedback] = useState(null); // { message: string, correct: boolean }
+
+  // レベル選択画面にもどる
+  const resetApp = () => {
+    setCurrentLevel('select');
+    setFeedback(null);
+    setShowInstructions(false);
+  };
+
+  // あたらしいもんだいをせってい
+  const generateProblem = (level) => {
+    let hour = Math.floor(Math.random() * 12) + 1;
+    let minute;
+    if (level === 'level1' || (level === 'level3' && Math.random() < 0.5)) {
+      // レベル1またはレベル3でなんじちょうどになるばあい
+      minute = 0;
+    } else {
+      // レベル2またはレベル3で5ふんごとのばあい
+      minute = Math.floor(Math.random() * 12) * 5;
+    }
+    setProblem({ hour, minute });
+    setFeedback(null);
+    setUserTime({ hour: 12, minute: 0 }); // レベル3のためにリセット
+  };
+
+  // レベルをはじめる
+  const startLevel = (level) => {
+    setCurrentLevel(level);
+    setShowInstructions(true);
+  };
+
+  // かいせつをとじてもんだいをせいせい
+  const closeInstructions = () => {
+    setShowInstructions(false);
+    generateProblem(currentLevel);
+  };
+
+  // レベル1と2のこたえをチェック
+  const checkAnswer = (selectedHour, selectedMinute) => {
+    if (problem.hour === selectedHour && problem.minute === selectedMinute) {
+      setFeedback({ message: 'せいかい！すばらしい！', correct: true });
+    } else {
+      setFeedback({ message: 'ざんねん！もういちどちょうせんしてみよう！', correct: false });
+    }
+  };
+
+  // レベル3のこたえをチェック
+  const checkUserTime = () => {
+    if (problem.hour === userTime.hour && userTime.minute === problem.minute) {
+      setFeedback({ message: 'せいかい！すばらしい！', correct: true });
+    } else {
+      setFeedback({ message: 'ざんねん！もういちどちょうせんしてみよう！', correct: false });
+    }
+  };
+
+  // はりをうごかす（レベル3よう）
+  const handleUserTimeChange = (type, value) => {
+    let newTime = { ...userTime };
+    if (type === 'hour') {
+      newTime.hour = (newTime.hour + value + 11) % 12 + 1; // 1-12
+    } else {
+      newTime.minute = (newTime.minute + value + 60) % 60; // 0-59
+    }
+    setUserTime(newTime);
+  };
+
+  // かくコンポーネントのレンダリング
+  const renderContent = () => {
+    if (currentLevel === 'select') {
+      return <LevelSelect onSelect={startLevel} />;
+    } else if (showInstructions) {
+      return (
+        <InstructionModal
+          level={currentLevel}
+          onClose={closeInstructions}
+        />
+      );
+    } else {
+      return (
+        <div className="flex flex-col items-center justify-center p-4">
+          <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-4xl p-4 bg-white rounded-2xl shadow-xl">
+            <div className="flex flex-col items-center p-4 md:p-8 w-full md:w-1/2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-6 text-center tracking-wide">
+                {currentLevel === 'level3' ? 'このじかんをつくってみよう' : 'なんじなんぷん？'}
+              </h2>
+              {/* レベル3のときのみ、デジタル表示 */}
+              {currentLevel === 'level3' && (
+                <p className="text-4xl sm:text-5xl font-extrabold text-indigo-600 mb-8 tracking-wider">
+                  {problem.hour.toString().padStart(2, '0')}:{problem.minute.toString().padStart(2, '0')}
+                </p>
+              )}
+              <Clock
+                hour={currentLevel === 'level3' ? userTime.hour : problem.hour}
+                minute={currentLevel === 'level3' ? userTime.minute : problem.minute}
+                size={300}
+                isDraggable={currentLevel === 'level3'}
+                setUserTime={setUserTime}
+              />
+            </div>
+
+            {/* かいとうエリア */}
+            <div className="flex flex-col items-center p-4 md:p-8 w-full md:w-1/2">
+              {currentLevel === 'level1' && <AnswerButtons type="hour" onSelect={checkAnswer} />}
+              {currentLevel === 'level2' && <AnswerButtons type="minute" onSelect={checkAnswer} />}
+              {currentLevel === 'level3' && (
+                <div className="flex flex-col items-center w-full">
+                  <h3 className="text-2xl font-bold text-slate-800 mb-4">じぶんではりをうごかしてみよう</h3>
+                  <div className="flex flex-col w-full max-w-sm">
+                    <div className="flex items-center justify-center mb-4 space-x-4">
+                      <p className="text-xl font-bold text-slate-600">じ</p>
+                      <button onClick={() => handleUserTimeChange('hour', -1)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowLeft size={24} /></button>
+                      <span className="text-5xl font-extrabold text-indigo-600 w-20 text-center">{userTime.hour}</span>
+                      <button onClick={() => handleUserTimeChange('hour', 1)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowRight size={24} /></button>
+                    </div>
+                    <div className="flex items-center justify-center mb-4 space-x-4">
+                      <p className="text-xl font-bold text-slate-600">ふん</p>
+                      <button onClick={() => handleUserTimeChange('minute', -5)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowLeft size={24} /></button>
+                      <span className="text-5xl font-extrabold text-indigo-600 w-20 text-center">{userTime.minute.toString().padStart(2, '0')}</span>
+                      <button onClick={() => handleUserTimeChange('minute', 5)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowRight size={24} /></button>
+                    </div>
+                  </div>
+                  <button onClick={checkUserTime} className="mt-8 px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-full shadow-lg hover:bg-green-600 transition-colors flex items-center space-x-2">
+                    <Check size={24} /><span>かいとうする</span>
+                  </button>
+                </div>
+              )}
+
+              {/* フィードバックひょうじ */}
+              {feedback && (
+                <div className={`mt-6 p-4 rounded-xl shadow-lg w-full max-w-md text-center transform transition-transform duration-500 ease-in-out ${feedback.correct ? 'bg-green-100 text-green-700 scale-105' : 'bg-red-100 text-red-700 scale-105'}`}>
+                  <p className="text-2xl font-bold">{feedback.message}</p>
+                  <button onClick={() => generateProblem(currentLevel)} className="mt-4 px-6 py-2 bg-indigo-500 text-white text-lg font-bold rounded-full shadow-md hover:bg-indigo-600 transition-colors flex items-center justify-center mx-auto space-x-2">
+                    <RefreshCcw size={20} /><span>つぎのもんだい</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* もどるボタン */}
+          <button onClick={resetApp} className="mt-8 px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-full shadow-md hover:bg-slate-300 transition-colors">
+            レベルせんたくにもどる
+          </button>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col items-center justify-center p-4">
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-center text-indigo-700 mb-10 tracking-tight">とけいのがくしゅうアプリ</h1>
+      {renderContent()}
+    </div>
+  );
+};
+
+// レベルせんたくコンポーネント
+const LevelSelect = ({ onSelect }) => {
+  return (
+    <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto space-y-6">
+      <button
+        onClick={() => onSelect('level1')}
+        className="w-full md:w-3/4 p-6 bg-indigo-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-indigo-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
+      >
+        <PlayCircle size={32} />
+        <span>レベル1：なんじ？</span>
+      </button>
+      <button
+        onClick={() => onSelect('level2')}
+        className="w-full md:w-3/4 p-6 bg-green-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
+      >
+        <PlayCircle size={32} />
+        <span>レベル2：なんじなんぷん？</span>
+      </button>
+      <button
+        onClick={() => onSelect('level3')}
+        className="w-full md:w-3/4 p-6 bg-yellow-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
+      >
+        <Hand size={32} />
+        <span>レベル3：じぶんでつくろう！</span>
+      </button>
+    </div>
+  );
+};
+
+// かいせつモーダルコンポーネント
+const InstructionModal = ({ level, onClose }) => {
+  const [instructionStep, setInstructionStep] = useState(0);
+
+  const instructions = {
+    level1: [
+      { text: "ようこそ！とけいのよみかたをまなんでみよう！", showClock: false },
+      { text: "みじかいはりは「じ」をあらわすはりだよ。", showClock: true, hour: 3, minute: 0, highlightHour: true },
+      { text: "ながいはりは「ふん」をあらわすはりだよ。", showClock: true, hour: 3, minute: 0, highlightMinute: true },
+      { text: "ながいはりが「12」をさしているときは、「ちょうど」のじかんだよ。", showClock: true, hour: 3, minute: 0, showHourHand: true, showMinuteHand: true, highlightMinuteNum: true },
+      { text: "このとけいはなんじかな？みじかいはりが「3」をさしているから、「3じ」だね！", showClock: true, hour: 3, minute: 0, showHourHand: true, showMinuteHand: true },
+      { text: "それでは、もんだいをといいてみよう！", showClock: false },
+    ],
+    level2: [
+      { text: "つぎは「なんぷん」かをよんでみよう。", showClock: false },
+      { text: "ながいはりが12から1まですすむと「5ふん」、2まですすむと「10ぷん」だよ。", showClock: true, hour: 1, minute: 0, showMinuteHand: true, highlightMinuteNum: true },
+      { text: "ながいはりがさしているすうじに「5」をかけると、ふんがわかるよ！", showClock: true, hour: 1, minute: 25, showHourHand: true, showMinuteHand: true, highlightMinuteNum: true },
+      { text: "ながいはりが「5」をさしているから、$5 \times 5 = 25$ふん！", showClock: true, hour: 1, minute: 25, showHourHand: true, showMinuteHand: true },
+      { text: "このとけいは、みじかいはりが「1」をすこしすぎていて、ながいはりが「5」をさしているから「1じ25ふん」だね！", showClock: true, hour: 1, minute: 25, showHourHand: true, showMinuteHand: true },
+      { text: "それでは、もんだいをといいてみよう！", showClock: false },
+    ],
+    level3: [
+      { text: "こんどは、じぶんでとけいをつくってみよう！", showClock: false },
+      { text: "もんだいにかかれたじかんになるように、はりをうごかしてね。", showClock: false },
+      { text: "みじかいはりをうごかすと「じ」を、ながいはりをうごかすと「ふん」をかえられるよ。", showClock: false },
+      { text: "がんばってちょうせんしてみよう！", showClock: false },
+    ]
+  };
+
+  const currentInstructions = instructions[level];
+  const currentInstruction = currentInstructions[instructionStep];
+
+  // ステップをすすめる
+  const nextStep = () => {
+    if (instructionStep < currentInstructions.length - 1) {
+      setInstructionStep(instructionStep + 1);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-10 w-full max-w-2xl transform transition-transform duration-300 scale-100 animate-fade-in">
+        <h3 className="text-3xl font-extrabold text-indigo-600 mb-6 flex items-center space-x-3">
+          <Lightbulb size={32} /><span>かいせつ</span>
+        </h3>
+        <p className="text-xl sm:text-2xl font-semibold text-slate-700 mb-8 text-center animate-pulse-text">{currentInstruction.text}</p>
+        {currentInstruction.showClock && (
+          <div className="flex justify-center my-6">
+            <Clock
+              hour={currentInstruction.hour}
+              minute={currentInstruction.minute}
+              size={250}
+              showHourHand={currentInstruction.showHourHand}
+              showMinuteHand={currentInstruction.showMinuteHand}
+              highlightHour={currentInstruction.highlightHour}
+              highlightMinute={currentInstruction.highlightMinute}
+              highlightMinuteNum={currentInstruction.highlightMinuteNum}
+            />
+          </div>
+        )}
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={nextStep}
+            className="px-8 py-4 bg-indigo-500 text-white text-xl font-bold rounded-full shadow-lg hover:bg-indigo-600 transition-colors flex items-center space-x-2"
+          >
+            {instructionStep < currentInstructions.length - 1 ? (
+              <><span>つぎへ</span><ArrowRight size={24} /></>
+            ) : (
+              <><span>もんだいをはじめる</span><PlayCircle size={24} /></>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// とけいコンポーネント
+const Clock = ({ hour, minute, size, showHourHand = true, showMinuteHand = true, highlightHour = false, highlightMinute = false, highlightMinuteNum = false, isDraggable = false, setUserTime = () => {} }) => {
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isDraggingHour, setIsDraggingHour] = useState(false);
+  const [isDraggingMinute, setIsDraggingMinute] = useState(false);
+  const animationFrameRef = useRef();
+  const startTimeRef = useRef(null);
+
+  // キャンバスのびょうが
+  const drawClock = (timestamp) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const radius = size / 2;
+    const centerX = size / 2;
+    const centerY = size / 2;
+
+    ctx.clearRect(0, 0, size, size);
+
+    // とけいのえん
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#f0f4f8';
+    ctx.fill();
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // じのすうじ
+    ctx.font = `${Math.round(size / 10)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#475569';
+    for (let i = 1; i <= 12; i++) {
+      const angle = (i - 3) * (Math.PI * 2) / 12;
+      const x = centerX + (radius * 0.8) * Math.cos(angle);
+      const y = centerY + (radius * 0.8) * Math.sin(angle);
+      ctx.fillText(i, x, y);
+    }
+
+    // ふんのすうじ (かいせつよう)
+    if (highlightMinuteNum) {
+      ctx.font = `${Math.round(size / 20)}px Arial`;
+      ctx.fillStyle = '#6b7280';
+      for (let i = 1; i <= 12; i++) {
+        const angle = (i - 3) * (Math.PI * 2) / 12;
+        const x = centerX + (radius * 0.9) * Math.cos(angle);
+        const y = centerY + (radius * 0.9) * Math.sin(angle);
+        ctx.fillText(i * 5, x, y);
+      }
+    }
+
+    // ハイライトアニメーションのけいさん
+    let animationFactor = 0;
+    if (highlightHour || highlightMinute) {
+      if (!startTimeRef.current) {
+        startTimeRef.current = timestamp;
+      }
+      const elapsedTime = timestamp - startTimeRef.current;
+      animationFactor = Math.sin(elapsedTime / 300) * 0.5 + 0.5; // 0.5から1.5のあいだでアニメーション
+    } else {
+      startTimeRef.current = null;
+    }
+
+    // みじかいはり (じしん)
+    if (showHourHand || highlightHour) {
+      const adjustedHour = hour % 12 || 12;
+      const hourAngle = ((adjustedHour + minute / 60) / 12) * (2 * Math.PI) - (Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + (radius * 0.5) * Math.cos(hourAngle),
+        centerY + (radius * 0.5) * Math.sin(hourAngle)
+      );
+      ctx.lineWidth = highlightHour ? 8 + 4 * animationFactor : 8; // アニメーションをてきよう
+      ctx.strokeStyle = highlightHour ? '#f97316' : '#475569'; // ハイライト
+      ctx.stroke();
+    }
+
+    // ながいはり (ふんしん)
+    if (showMinuteHand || highlightMinute) {
+      const minuteAngle = ((minute / 60) * (2 * Math.PI)) - (Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(
+        centerX + (radius * 0.7) * Math.cos(minuteAngle),
+        centerY + (radius * 0.7) * Math.sin(minuteAngle)
+      );
+      ctx.lineWidth = highlightMinute ? 5 + 4 * animationFactor : 5; // アニメーションをてきよう
+      ctx.strokeStyle = highlightMinute ? '#f97316' : '#ef4444'; // ハイライト
+      ctx.stroke();
+    }
+
+    // ちゅうおうのえん
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+
+    if (highlightHour || highlightMinute) {
+      animationFrameRef.current = requestAnimationFrame(drawClock);
+    }
+  };
+
+  useEffect(() => {
+    // びょうがをかいし
+    animationFrameRef.current = requestAnimationFrame(drawClock);
+    // クリーンアップ
+    return () => cancelAnimationFrame(animationFrameRef.current);
+  }, [hour, minute, size, showHourHand, showMinuteHand, highlightHour, highlightMinute, highlightMinuteNum]);
+
+  // レベル3よう：はりのドラッグきのう
+  const handleMove = (e) => {
+    if (!isDraggingHour && !isDraggingMinute) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX || (e.touches && e.touches[0].clientX);
+    const y = e.clientY || (e.touches && e.touches[0].clientY);
+    if (!x || !y) return;
+
+    const dx = x - (rect.left + size / 2);
+    const dy = y - (rect.top + size / 2);
+    const angle = Math.atan2(dy, dx) + Math.PI / 2;
+    const normalizedAngle = (angle + 2 * Math.PI) % (2 * Math.PI);
+
+    if (isDraggingHour) {
+      const newHour = Math.floor(normalizedAngle / (2 * Math.PI) * 12) + 1;
+      setUserTime(prev => ({ ...prev, hour: newHour }));
+    } else if (isDraggingMinute) {
+      const newMinute = Math.round(normalizedAngle / (2 * Math.PI) * 60);
+      setUserTime(prev => ({ ...prev, minute: newMinute - (newMinute % 5) })); // 5ふんごとのきざみ
+    }
+  };
+
+  const handleEnd = () => {
+    setIsDraggingHour(false);
+    setIsDraggingMinute(false);
+  };
+
+  const handleDown = (e) => {
+    if (!isDraggable) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX || (e.touches && e.touches[0].clientX);
+    const y = e.clientY || (e.touches && e.touches[0].clientY);
+    const dx = x - (rect.left + size / 2);
+    const dy = y - (rect.top + size / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // みじかいはりのはんい
+    if (dist < size * 0.5 && dist > size * 0.2) {
+      setIsDraggingHour(true);
+    }
+    // ながいはりのはんい
+    else if (dist < size * 0.7 && dist > size * 0.5) {
+      setIsDraggingMinute(true);
+    }
+  };
+
+  useEffect(() => {
+    if (isDraggable) {
+      const canvas = canvasRef.current;
+      canvas.addEventListener('mousemove', handleMove);
+      canvas.addEventListener('mouseup', handleEnd);
+      canvas.addEventListener('touchmove', handleMove);
+      canvas.addEventListener('touchend', handleEnd);
+      return () => {
+        canvas.removeEventListener('mousemove', handleMove);
+        canvas.removeEventListener('mouseup', handleEnd);
+        canvas.removeEventListener('touchmove', handleMove);
+        canvas.removeEventListener('touchend', handleEnd);
+      };
+    }
+  }, [isDraggable, isDraggingHour, isDraggingMinute, size, setUserTime]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative rounded-full shadow-2xl bg-white transition-all duration-300 ease-in-out"
+      style={{ width: size, height: size }}
+      onMouseDown={handleDown}
+      onTouchStart={handleDown}
+    >
+      <canvas ref={canvasRef} width={size} height={size}></canvas>
+    </div>
+  );
+};
+
+
+// かいとうボタンコンポーネント (レベル1, 2よう)
+const AnswerButtons = ({ type, onSelect }) => {
+  const answers = type === 'hour'
+    ? Array.from({ length: 12 }, (_, i) => i + 1)
+    : Array.from({ length: 12 }, (_, i) => i * 5);
+
+  const [selected, setSelected] = useState(null);
+
+  const handleClick = (value) => {
+    setSelected(value);
+    const hour = type === 'hour' ? value : null;
+    const minute = type === 'hour' ? 0 : value;
+    onSelect(hour, minute);
+  };
+
+  return (
+    <div className="flex flex-col items-center w-full">
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 w-full max-w-lg">
+        {answers.map((value) => (
+          <button
+            key={value}
+            onClick={() => handleClick(value)}
+            className={`p-4 text-xl font-bold rounded-xl shadow-md transition-all duration-200
+              ${selected === value ? 'bg-indigo-600 text-white transform scale-105' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
+          >
+            {value}{type === 'hour' ? 'じ' : 'ふん'}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+// CSSアニメーション
+const style = document.createElement('style');
+style.innerHTML = `
+@keyframes pulse-text {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+.animate-pulse-text {
+  animation: pulse-text 2s infinite;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+`;
+document.head.appendChild(style);
+
+const container = document.getElementById('root');
+if (container) {
+  ReactDOM.render(<App />, container);
+}
