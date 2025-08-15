@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>時計学習ゲーム</title>
+    <title>とけいがくしゅうゲーム</title>
     <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -102,8 +102,8 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
 <div class="game-container">
-    <h1 class="text-3xl font-bold mb-4">時計学習ゲーム</h1>
-    <p id="question" class="text-xl text-gray-700 mb-4">レベルを選択してゲームを始めよう！</p>
+    <h1 class="text-3xl font-bold mb-4">とけいがくしゅうゲーム</h1>
+    <p id="question" class="text-xl text-gray-700 mb-4">レベルをせんたくしてゲームをはじめてね！</p>
     
     <!-- レベル選択ボタン -->
     <div class="level-selection" id="level-selection">
@@ -120,15 +120,15 @@
     <div id="game-controls" class="w-full max-w-sm flex flex-col gap-4">
         <!-- レベル1〜3用の入力欄 -->
         <div id="text-input-group" class="w-full flex flex-col items-center gap-2" style="display: none;">
-            <input type="text" id="answerInput" placeholder="例: 10時30分" class="text-lg">
-            <button id="checkAnswerButton" class="game-button">答え合わせ</button>
+            <input type="text" id="answerInput" placeholder="れい: じゅうじ はん" class="text-lg">
+            <button id="checkAnswerButton" class="game-button">こたえあわせ</button>
         </div>
 
         <!-- レベル4用の説明 -->
         <p id="level4-instruction" class="text-lg text-gray-600" style="display: none;">
-            マウスで針を動かして、時間に合わせてね！
+            マウスやゆびではりをうごかして、じかんにあわせてね！
         </p>
-        <button id="nextQuestionButton" class="game-button" style="display: none;">次の問題</button>
+        <button id="nextQuestionButton" class="game-button" style="display: none;">つぎのもんだい</button>
 
         <p id="feedback" class="text-lg font-bold mt-2"></p>
     </div>
@@ -143,8 +143,9 @@
     // グローバル変数と定数の定義
     const canvas = document.getElementById('clockCanvas');
     const ctx = canvas.getContext('2d');
-    const radius = canvas.width / 2;
-    ctx.translate(radius, radius);
+    let radius = 0;
+
+    // ゲームのデータ管理
     let gameData = {
         level: 1,
         score: 0,
@@ -168,9 +169,25 @@
     window.onload = function() {
         // ゲームの初期設定
         setupEventListeners();
-        drawClock();
+        setupCanvas();
+        startGame();
         updateLevelDisplay(gameData.level);
+        window.addEventListener('resize', setupCanvas); // 画面サイズ変更時にも対応
     };
+
+    // キャンバスのセットアップ
+    function setupCanvas() {
+        // 親要素のサイズに合わせてキャンバスのサイズを調整
+        const container = document.querySelector('.game-container');
+        const containerWidth = container.offsetWidth - 60; // Padding
+        const size = Math.min(containerWidth, 400); // 最大400px
+        canvas.width = size;
+        canvas.height = size;
+        radius = canvas.width / 2;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // 変形をリセット
+        ctx.translate(radius, radius); // 中心に再配置
+        drawClock();
+    }
 
     // イベントリスナーの設定
     function setupEventListeners() {
@@ -197,11 +214,44 @@
         // レベル4の次の問題ボタン
         nextQuestionButton.addEventListener('click', startGame);
 
-        // レベル4の時計操作
+        // レベル4の時計操作 (マウスとタッチ)
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseUp);
+        
+        // タッチイベントの追加
+        canvas.addEventListener('touchstart', handleTouchStart);
+        canvas.addEventListener('touchmove', handleTouchMove);
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd);
+    }
+    
+    // タッチイベントのラッパー関数
+    function handleTouchStart(e) {
+        e.preventDefault(); // スクロールなどを防ぐ
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousedown', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+    }
+    
+    function handleTouchMove(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousemove', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+    }
+    
+    function handleTouchEnd(e) {
+        e.preventDefault();
+        const mouseEvent = new MouseEvent('mouseup', {});
+        canvas.dispatchEvent(mouseEvent);
     }
 
     // レベルに応じたUI表示の切り替え
@@ -263,17 +313,39 @@
     // 答え合わせの処理 (レベル1〜3)
     function checkAnswer() {
         const input = answerInputEl.value.trim();
-        const regex = /(\d+)\s*時(?:\s*(\d+)\s*分)?/;
-        const match = input.match(regex);
+        let userHour = 0;
+        let userMinute = 0;
 
-        if (!match) {
-            showFeedback('形式が違います。「10時30分」のように入力してください。', 'red');
-            return;
+        // レベル1は「〇じ」の形式を想定
+        if (gameData.level === 1) {
+            const numStr = input.replace(/[^0-9]/g, '');
+            if (numStr) {
+                userHour = parseInt(numStr, 10);
+            }
+        } else {
+            // レベル2と3は「〇じ〇ふん」や「〇じ はん」に対応
+            // ひらがなを数字に変換する辞書
+            const hiraganaToNumber = {
+                'いち': 1, 'に': 2, 'さん': 3, 'よん': 4, 'ご': 5, 'ろく': 6,
+                'なな': 7, 'はち': 8, 'く': 9, 'じゅう': 10, 'じゅういち': 11, 'じゅうに': 12,
+                'はん': 30
+            };
+            const parts = input.split(' ');
+            let hourStr = parts[0] || '';
+            let minuteStr = parts[1] || '';
+
+            // 「じ」を削除
+            hourStr = hourStr.replace('じ', '');
+            
+            // ひらがなを数字に変換
+            userHour = hiraganaToNumber[hourStr] || parseInt(hourStr, 10) || 0;
+            if (minuteStr === 'はん') {
+                userMinute = 30;
+            } else {
+                userMinute = hiraganaToNumber[minuteStr] || parseInt(minuteStr, 10) || 0;
+            }
         }
-
-        const userHour = parseInt(match[1], 10);
-        const userMinute = match[2] ? parseInt(match[2], 10) : 0;
-
+        
         const { hour: targetHour, minute: targetMinute } = gameData.targetTime;
         
         let isCorrect = false;
@@ -287,11 +359,12 @@
         if (isCorrect) {
             gameData.score++;
             scoreEl.textContent = gameData.score;
-            showFeedback('正解です！', 'green');
+            showFeedback('せいかいです！', 'green');
             nextQuestionButton.style.display = 'block';
             checkAnswerButton.style.display = 'none';
         } else {
-            showFeedback(`残念！正解は ${targetHour}時${targetMinute}分 です。`, 'red');
+            const targetMinuteText = targetMinute === 30 ? 'はん' : `${targetMinute}ふん`;
+            showFeedback(`ざんねん！ せいかいは ${targetHour}じ ${targetMinuteText} です。`, 'red');
             nextQuestionButton.style.display = 'block';
             checkAnswerButton.style.display = 'none';
         }
@@ -312,9 +385,10 @@
         if ((targetHour % 12) === (actualHour % 12) && targetMinute === userMinuteRounded) {
             gameData.score++;
             scoreEl.textContent = gameData.score;
-            showFeedback('正解です！', 'green');
+            showFeedback('せいかいです！', 'green');
         } else {
-            showFeedback(`残念！正解は ${targetHour}時${targetMinute}分 です。`, 'red');
+            const targetMinuteText = targetMinute === 30 ? 'はん' : `${targetMinute}ふん`;
+            showFeedback(`ざんねん！ せいかいは ${targetHour}じ ${targetMinuteText} です。`, 'red');
         }
         nextQuestionButton.style.display = 'block';
     }
@@ -325,13 +399,18 @@
         const level = gameData.level;
         if (level === 4) {
             const { hour, minute } = gameData.targetTime;
-            const minuteText = minute > 0 ? `${minute}分` : '';
-            questionEl.textContent = `${hour}時${minuteText}に合わせてね！`;
+            const minuteText = minute > 0 ? `${minute}ふん` : '';
+            questionEl.textContent = `${hour}じ ${minuteText}にあわせてね！`;
         } else {
             const { hour, minute } = gameData.targetTime;
-            const minuteText = minute > 0 ? `${minute}分` : '';
-            questionEl.textContent = `今何時？ (${hour}時${minuteText})`;
+            const minuteText = minute === 30 ? 'はん' : `${minute}ふん`;
+            // レベル1は「〇じ」のみの表記
+            const questionText = level === 1 ? `${hour}じ？` : `いまなんじ？ (${hour}じ ${minuteText})`;
+            questionEl.textContent = questionText;
+            
             answerInputEl.value = '';
+            // レベル1のplaceholderを「〇じ」に変更
+            answerInputEl.placeholder = (level === 1) ? 'れい: じゅうじ' : 'れい: じゅうじ はん';
         }
         // レベル4ではユーザーの針を操作するので、初期状態に戻す
         if (level === 4) {
