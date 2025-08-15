@@ -221,9 +221,10 @@
 
     // 新しいゲームを開始
     function startGame() {
+        // 問題を生成
         generateNewTime(gameData.level);
+        // UIを更新（問題文と時計の描画）
         updateUI();
-        drawClock(gameData.level === 4 ? gameData.userTime : gameData.targetTime);
         feedbackEl.textContent = '';
         answerInputEl.value = '';
         checkAnswerButton.style.display = (gameData.level < 4) ? 'block' : 'none';
@@ -237,10 +238,10 @@
 
         switch (level) {
             case 1:
-                minute = 0;
+                minute = 0; // レベル1は丁度の時間のみ
                 break;
             case 2:
-                minute = 30;
+                minute = 30; // レベル2は30分のみ
                 break;
             case 3:
                 minute = Math.floor(Math.random() * 12) * 5;
@@ -274,8 +275,16 @@
         const userMinute = match[2] ? parseInt(match[2], 10) : 0;
 
         const { hour: targetHour, minute: targetMinute } = gameData.targetTime;
+        
+        let isCorrect = false;
+        // レベル1は分の回答がなくても正解とみなす
+        if (gameData.level === 1 && userMinute === 0) {
+             isCorrect = userHour === targetHour;
+        } else {
+             isCorrect = userHour === targetHour && userMinute === targetMinute;
+        }
 
-        if (userHour === targetHour && userMinute === targetMinute) {
+        if (isCorrect) {
             gameData.score++;
             scoreEl.textContent = gameData.score;
             showFeedback('正解です！', 'green');
@@ -296,7 +305,11 @@
         // 5分刻みで比較
         const userMinuteRounded = Math.round(userMinute / 5) * 5;
 
-        if (targetHour === userHour && targetMinute === userMinuteRounded) {
+        // 長針を動かしたときに短針が連動して動くように修正
+        const hourFromMinute = Math.floor(userMinute / 60);
+        const actualHour = userHour % 12 + hourFromMinute;
+
+        if ((targetHour % 12) === (actualHour % 12) && targetMinute === userMinuteRounded) {
             gameData.score++;
             scoreEl.textContent = gameData.score;
             showFeedback('正解です！', 'green');
@@ -320,7 +333,7 @@
             questionEl.textContent = `今何時？ (${hour}時${minuteText})`;
             answerInputEl.value = '';
         }
-        // レベル4では針を動かすので、毎回時計を再描画
+        // レベル4ではユーザーの針を操作するので、初期状態に戻す
         if (level === 4) {
              drawClock(gameData.userTime);
         } else {
@@ -402,16 +415,15 @@
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left - radius;
         const y = e.clientY - rect.top - radius;
-        const angle = Math.atan2(y, x);
-
-        const hourAngle = (gameData.userTime.hour % 12) * Math.PI / 6 + (gameData.userTime.minute * Math.PI / (6 * 60)) - Math.PI / 2;
-        const minuteAngle = gameData.userTime.minute * Math.PI / 30 - Math.PI / 2;
-
         const dist = Math.sqrt(x * x + y * y);
-        if (dist < radius * 0.65) { // 短い針の範囲
+
+        // 短い針の範囲 (マウスが中央からある程度の距離にある場合)
+        if (dist > radius * 0.2 && dist < radius * 0.65) {
             gameData.activeHand = 'hour';
             gameData.isDragging = true;
-        } else if (dist < radius * 0.85) { // 長い針の範囲
+        } 
+        // 長い針の範囲
+        else if (dist > radius * 0.65 && dist < radius * 0.85) {
             gameData.activeHand = 'minute';
             gameData.isDragging = true;
         }
@@ -422,25 +434,23 @@
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left - radius;
         const y = e.clientY - rect.top - radius;
-        let angle = Math.atan2(y, x) + Math.PI / 2;
-        if (angle < 0) angle += 2 * Math.PI;
+        let angle = Math.atan2(y, x) + Math.PI / 2; // 角度を計算
+        if (angle < 0) angle += 2 * Math.PI; // 角度を0〜2πの範囲に
 
         if (gameData.activeHand === 'hour') {
-            const newHour = Math.floor(angle * 12 / (2 * Math.PI)) % 12;
+            // 短い針を動かした時
+            const newHour = Math.floor(angle * 12 / (2 * Math.PI));
             gameData.userTime.hour = newHour === 0 ? 12 : newHour;
-            // 短い針を動かしたら長い針も少し動かす
-            const minuteAngleOffset = (gameData.userTime.minute * Math.PI / (6 * 60));
-            gameData.userTime.hour = Math.floor((angle - minuteAngleOffset) * 12 / (2 * Math.PI)) + 1;
-            if (gameData.userTime.hour > 12) gameData.userTime.hour -= 12;
-            if (gameData.userTime.hour <= 0) gameData.userTime.hour += 12;
-
+            // 短針を動かしても長針はそのまま
         } else if (gameData.activeHand === 'minute') {
-            const newMinute = Math.floor(angle * 60 / (2 * Math.PI));
-            gameData.userTime.minute = newMinute;
-            // 長い針を動かしたら短い針も少し動かす
-            const newHour = (gameData.userTime.hour % 12) + newMinute / 60;
-            const hourDisplay = Math.floor(newHour);
-            gameData.userTime.hour = hourDisplay === 0 ? 12 : hourDisplay;
+            // 長い針を動かした時
+            const newMinute = Math.round(angle * 60 / (2 * Math.PI));
+            gameData.userTime.minute = newMinute % 60; // 0-59の範囲に
+            // 長い針を動かしたときに、短い針も連動して動くように修正
+            const hourOffset = Math.floor(newMinute / 60);
+            const baseHour = gameData.userTime.hour;
+            gameData.userTime.hour = (baseHour + hourOffset) % 12;
+            if (gameData.userTime.hour === 0) gameData.userTime.hour = 12;
         }
 
         drawClock(gameData.userTime);
@@ -452,6 +462,11 @@
         gameData.activeHand = null;
         // 5分刻みに丸める
         gameData.userTime.minute = Math.round(gameData.userTime.minute / 5) * 5;
+        if (gameData.userTime.minute === 60) {
+            gameData.userTime.minute = 0;
+            gameData.userTime.hour = (gameData.userTime.hour % 12) + 1;
+            if (gameData.userTime.hour === 0) gameData.userTime.hour = 12;
+        }
         // 針を丸めた位置に再描画
         drawClock(gameData.userTime);
         checkLevel4Answer();
