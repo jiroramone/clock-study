@@ -1,442 +1,462 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時計学習ゲーム</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .game-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        #clockCanvas {
+            border: 5px solid #6366f1;
+            border-radius: 50%;
+            background-color: #f8fafc;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            height: auto;
+            max-width: 400px; /* Adjust as needed */
+            aspect-ratio: 1 / 1; /* Keep it circular */
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .game-button {
+            background-color: #6366f1;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 9999px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            border: none;
+        }
+        .game-button:hover {
+            background-color: #4f46e5;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        .game-button:disabled {
+            background-color: #a5b4fc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        input[type="text"] {
+            border-radius: 9999px;
+            border: 2px solid #cbd5e1;
+            padding: 10px 20px;
+            width: 100%;
+            max-width: 250px;
+            text-align: center;
+            font-size: 1.125rem;
+        }
+        .level-selection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .level-button {
+            background-color: #e2e8f0;
+            color: #475569;
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s;
+        }
+        .level-button.active {
+            background-color: #6366f1;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
-// Lucide-reactのアイコンをインポート
-import { PlayCircle, ArrowLeft, ArrowRight, RefreshCcw, Check, Hand } from 'lucide-react';
+<div class="game-container">
+    <h1 class="text-3xl font-bold mb-4">時計学習ゲーム</h1>
+    <p id="question" class="text-xl text-gray-700 mb-4">レベルを選択してゲームを始めよう！</p>
+    
+    <!-- レベル選択ボタン -->
+    <div class="level-selection" id="level-selection">
+        <button class="level-button active" data-level="1">レベル1</button>
+        <button class="level-button" data-level="2">レベル2</button>
+        <button class="level-button" data-level="3">レベル3</button>
+        <button class="level-button" data-level="4">レベル4</button>
+    </div>
 
-// アプリケーション全体
-const App = () => {
-  const [currentLevel, setCurrentLevel] = useState('select'); // 'select', 'level1', 'level2', 'level3'
-  const [problem, setProblem] = useState(null); // { hour: 1-12, minute: 0-59 }
-  const [userTime, setUserTime] = useState({ hour: 12, minute: 0 }); // ユーザーが設定した時間（レベル3用）
-  const [feedback, setFeedback] = useState(null); // { message: string, correct: boolean }
+    <!-- 時計描画用キャンバス -->
+    <canvas id="clockCanvas" width="400" height="400"></canvas>
 
-  // レベル選択画面にもどる
-  const resetApp = () => {
-    setCurrentLevel('select');
-    setFeedback(null);
-  };
-
-  // あたらしいもんだいをせってい
-  const generateProblem = (level) => {
-    let hour = Math.floor(Math.random() * 12) + 1;
-    let minute;
-    if (level === 'level1' || (level === 'level3' && Math.random() < 0.5)) {
-      // レベル1またはレベル3でなんじちょうどになるばあい
-      minute = 0;
-    } else {
-      // レベル2またはレベル3で5ふんごとのばあい
-      minute = Math.floor(Math.random() * 12) * 5;
-    }
-    setProblem({ hour, minute });
-    setFeedback(null);
-    setUserTime({ hour: 12, minute: 0 }); // レベル3のためにリセット
-  };
-
-  // レベルをはじめる
-  const startLevel = (level) => {
-    setCurrentLevel(level);
-    generateProblem(level);
-  };
-
-  // レベル1と2のこたえをチェック
-  const checkAnswer = (selectedHour, selectedMinute) => {
-    if (problem.hour === selectedHour && problem.minute === selectedMinute) {
-      setFeedback({ message: 'せいかい！すばらしい！', correct: true });
-    } else {
-      setFeedback({ message: 'ざんねん！もういちどちょうせんしてみよう！', correct: false });
-    }
-  };
-
-  // レベル3のこたえをチェック
-  const checkUserTime = () => {
-    if (problem.hour === userTime.hour && userTime.minute === problem.minute) {
-      setFeedback({ message: 'せいかい！すばらしい！', correct: true });
-    } else {
-      setFeedback({ message: 'ざんねん！もういちどちょうせんしてみよう！', correct: false });
-    }
-  };
-
-  // はりをうごかす（レベル3よう）
-  const handleUserTimeChange = (type, value) => {
-    let newTime = { ...userTime };
-    if (type === 'hour') {
-      newTime.hour = (newTime.hour + value + 11) % 12 + 1; // 1-12
-    } else {
-      newTime.minute = (newTime.minute + value + 60) % 60; // 0-59
-    }
-    setUserTime(newTime);
-  };
-
-  // かくコンポーネントのレンダリング
-  const renderContent = () => {
-    if (currentLevel === 'select') {
-      return <LevelSelect onSelect={startLevel} />;
-    } else {
-      return (
-        <div className="flex flex-col items-center justify-center p-4">
-          <div className="flex flex-col md:flex-row items-center justify-center w-full max-w-4xl p-4 bg-white rounded-2xl shadow-xl">
-            <div className="flex flex-col items-center p-4 md:p-8 w-full md:w-1/2">
-              <h2 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-6 text-center tracking-wide">
-                {currentLevel === 'level3' ? 'このじかんをつくってみよう' : 'なんじなんぷん？'}
-              </h2>
-              {/* レベル3のときのみ、デジタル表示 */}
-              {currentLevel === 'level3' && (
-                <p className="text-4xl sm:text-5xl font-extrabold text-indigo-600 mb-8 tracking-wider">
-                  {problem.hour.toString().padStart(2, '0')}:{problem.minute.toString().padStart(2, '0')}
-                </p>
-              )}
-              <Clock
-                hour={currentLevel === 'level3' ? userTime.hour : problem.hour}
-                minute={currentLevel === 'level3' ? userTime.minute : problem.minute}
-                size={300}
-                isDraggable={currentLevel === 'level3'}
-                setUserTime={setUserTime}
-              />
-            </div>
-
-            {/* かいとうエリア */}
-            <div className="flex flex-col items-center p-4 md:p-8 w-full md:w-1/2">
-              {currentLevel === 'level1' && <AnswerButtons type="hour" onSelect={checkAnswer} />}
-              {currentLevel === 'level2' && <AnswerButtons type="minute" onSelect={checkAnswer} />}
-              {currentLevel === 'level3' && (
-                <div className="flex flex-col items-center w-full">
-                  <h3 className="text-2xl font-bold text-slate-800 mb-4">じぶんではりをうごかしてみよう</h3>
-                  <div className="flex flex-col w-full max-w-sm">
-                    <div className="flex items-center justify-center mb-4 space-x-4">
-                      <p className="text-xl font-bold text-slate-600">じ</p>
-                      <button onClick={() => handleUserTimeChange('hour', -1)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowLeft size={24} /></button>
-                      <span className="text-5xl font-extrabold text-indigo-600 w-20 text-center">{userTime.hour}</span>
-                      <button onClick={() => handleUserTimeChange('hour', 1)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowRight size={24} /></button>
-                    </div>
-                    <div className="flex items-center justify-center mb-4 space-x-4">
-                      <p className="text-xl font-bold text-slate-600">ふん</p>
-                      <button onClick={() => handleUserTimeChange('minute', -5)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowLeft size={24} /></button>
-                      <span className="text-5xl font-extrabold text-indigo-600 w-20 text-center">{userTime.minute.toString().padStart(2, '0')}</span>
-                      <button onClick={() => handleUserTimeChange('minute', 5)} className="p-3 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-colors"><ArrowRight size={24} /></button>
-                    </div>
-                  </div>
-                  <button onClick={checkUserTime} className="mt-8 px-8 py-4 bg-green-500 text-white text-xl font-bold rounded-full shadow-lg hover:bg-green-600 transition-colors flex items-center space-x-2">
-                    <Check size={24} /><span>かいとうする</span>
-                  </button>
-                </div>
-              )}
-
-              {/* フィードバックひょうじ */}
-              {feedback && (
-                <div className={`mt-6 p-4 rounded-xl shadow-lg w-full max-w-md text-center transform transition-transform duration-500 ease-in-out ${feedback.correct ? 'bg-green-100 text-green-700 scale-105' : 'bg-red-100 text-red-700 scale-105'}`}>
-                  <p className="text-2xl font-bold">{feedback.message}</p>
-                  <button onClick={() => generateProblem(currentLevel)} className="mt-4 px-6 py-2 bg-indigo-500 text-white text-lg font-bold rounded-full shadow-md hover:bg-indigo-600 transition-colors flex items-center justify-center mx-auto space-x-2">
-                    <RefreshCcw size={20} /><span>つぎのもんだい</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          {/* もどるボタン */}
-          <button onClick={resetApp} className="mt-8 px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-full shadow-md hover:bg-slate-300 transition-colors">
-            レベルせんたくにもどる
-          </button>
+    <!-- ユーザー入力とボタン -->
+    <div id="game-controls" class="w-full max-w-sm flex flex-col gap-4">
+        <!-- レベル1〜3用の入力欄 -->
+        <div id="text-input-group" class="w-full flex flex-col items-center gap-2" style="display: none;">
+            <input type="text" id="answerInput" placeholder="例: 10時30分" class="text-lg">
+            <button id="checkAnswerButton" class="game-button">答え合わせ</button>
         </div>
-      );
-    }
-  };
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col items-center justify-center p-4">
-      <h1 className="text-4xl sm:text-5xl font-extrabold text-center text-indigo-700 mb-10 tracking-tight">とけいのがくしゅうアプリ</h1>
-      {renderContent()}
+        <!-- レベル4用の説明 -->
+        <p id="level4-instruction" class="text-lg text-gray-600" style="display: none;">
+            マウスで針を動かして、時間に合わせてね！
+        </p>
+        <button id="nextQuestionButton" class="game-button" style="display: none;">次の問題</button>
+
+        <p id="feedback" class="text-lg font-bold mt-2"></p>
     </div>
-  );
-};
 
-// レベルせんたくコンポーネント
-const LevelSelect = ({ onSelect }) => {
-  return (
-    <div className="flex flex-col items-center justify-center w-full max-w-2xl mx-auto space-y-6">
-      <button
-        onClick={() => onSelect('level1')}
-        className="w-full md:w-3/4 p-6 bg-indigo-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-indigo-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
-      >
-        <PlayCircle size={32} />
-        <span>レベル1：なんじ？</span>
-      </button>
-      <button
-        onClick={() => onSelect('level2')}
-        className="w-full md:w-3/4 p-6 bg-green-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-green-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
-      >
-        <PlayCircle size={32} />
-        <span>レベル2：なんじなんぷん？</span>
-      </button>
-      <button
-        onClick={() => onSelect('level3')}
-        className="w-full md:w-3/4 p-6 bg-yellow-500 text-white text-2xl font-bold rounded-2xl shadow-lg hover:bg-yellow-600 transition-colors flex items-center justify-center space-x-4 transform hover:scale-105"
-      >
-        <Hand size={32} />
-        <span>レベル3：じぶんでつくろう！</span>
-      </button>
+    <!-- スコア表示 -->
+    <div class="mt-4 text-xl font-bold">
+        スコア: <span id="score">0</span>
     </div>
-  );
-};
+</div>
 
-// とけいコンポーネント
-const Clock = ({ hour, minute, size, showHourHand = true, showMinuteHand = true, highlightHour = false, highlightMinute = false, highlightMinuteNum = false, isDraggable = false, setUserTime = () => {} }) => {
-  const containerRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [isDraggingHour, setIsDraggingHour] = useState(false);
-  const [isDraggingMinute, setIsDraggingMinute] = useState(false);
-  const animationFrameRef = useRef();
-  const startTimeRef = useRef(null);
-
-  // キャンバスのびょうが
-  const drawClock = (timestamp) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+<script>
+    // グローバル変数と定数の定義
+    const canvas = document.getElementById('clockCanvas');
     const ctx = canvas.getContext('2d');
-    const radius = size / 2;
-    const centerX = size / 2;
-    const centerY = size / 2;
+    const radius = canvas.width / 2;
+    ctx.translate(radius, radius);
+    let gameData = {
+        level: 1,
+        score: 0,
+        targetTime: null,
+        userTime: { hour: 0, minute: 0 },
+        isDragging: false,
+        activeHand: null
+    };
 
-    ctx.clearRect(0, 0, size, size);
+    // UI要素の取得
+    const questionEl = document.getElementById('question');
+    const levelSelectionEl = document.getElementById('level-selection');
+    const answerInputEl = document.getElementById('answerInput');
+    const checkAnswerButton = document.getElementById('checkAnswerButton');
+    const nextQuestionButton = document.getElementById('nextQuestionButton');
+    const feedbackEl = document.getElementById('feedback');
+    const scoreEl = document.getElementById('score');
+    const textInputGroup = document.getElementById('text-input-group');
+    const level4Instruction = document.getElementById('level4-instruction');
 
-    // とけいのえん
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
-    ctx.fillStyle = '#f0f4f8';
-    ctx.fill();
-    ctx.strokeStyle = '#d1d5db';
-    ctx.lineWidth = 4;
-    ctx.stroke();
+    window.onload = function() {
+        // ゲームの初期設定
+        setupEventListeners();
+        drawClock();
+        updateLevelDisplay(gameData.level);
+    };
 
-    // じのすうじ
-    ctx.font = `${Math.round(size / 10)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#475569';
-    for (let i = 1; i <= 12; i++) {
-      const angle = (i - 3) * (Math.PI * 2) / 12;
-      const x = centerX + (radius * 0.8) * Math.cos(angle);
-      const y = centerY + (radius * 0.8) * Math.sin(angle);
-      ctx.fillText(i, x, y);
+    // イベントリスナーの設定
+    function setupEventListeners() {
+        // レベル選択ボタン
+        levelSelectionEl.querySelectorAll('.level-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const newLevel = parseInt(button.dataset.level, 10);
+                gameData.level = newLevel;
+                gameData.score = 0; // レベル変更でスコアをリセット
+                scoreEl.textContent = gameData.score;
+                updateLevelDisplay(newLevel);
+                startGame();
+            });
+        });
+
+        // レベル1〜3の答え合わせボタン
+        checkAnswerButton.addEventListener('click', checkAnswer);
+        answerInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        // レベル4の次の問題ボタン
+        nextQuestionButton.addEventListener('click', startGame);
+
+        // レベル4の時計操作
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
     }
 
-    // ふんのすうじ (かいせつよう)
-    if (highlightMinuteNum) {
-      ctx.font = `${Math.round(size / 20)}px Arial`;
-      ctx.fillStyle = '#6b7280';
-      for (let i = 1; i <= 12; i++) {
-        const angle = (i - 3) * (Math.PI * 2) / 12;
-        const x = centerX + (radius * 0.9) * Math.cos(angle);
-        const y = centerY + (radius * 0.9) * Math.sin(angle);
-        ctx.fillText(i * 5, x, y);
-      }
+    // レベルに応じたUI表示の切り替え
+    function updateLevelDisplay(level) {
+        levelSelectionEl.querySelectorAll('.level-button').forEach(button => {
+            button.classList.remove('active');
+            if (parseInt(button.dataset.level, 10) === level) {
+                button.classList.add('active');
+            }
+        });
+
+        textInputGroup.style.display = (level < 4) ? 'flex' : 'none';
+        level4Instruction.style.display = (level === 4) ? 'block' : 'none';
+        nextQuestionButton.style.display = 'none';
+        feedbackEl.textContent = '';
     }
 
-    // ハイライトアニメーションのけいさん
-    let animationFactor = 0;
-    if (highlightHour || highlightMinute) {
-      if (!startTimeRef.current) {
-        startTimeRef.current = timestamp;
-      }
-      const elapsedTime = timestamp - startTimeRef.current;
-      animationFactor = Math.sin(elapsedTime / 300) * 0.5 + 0.5; // 0.5から1.5のあいだでアニメーション
-    } else {
-      startTimeRef.current = null;
+    // 新しいゲームを開始
+    function startGame() {
+        generateNewTime(gameData.level);
+        updateUI();
+        drawClock(gameData.level === 4 ? gameData.userTime : gameData.targetTime);
+        feedbackEl.textContent = '';
+        answerInputEl.value = '';
+        checkAnswerButton.style.display = (gameData.level < 4) ? 'block' : 'none';
+        nextQuestionButton.style.display = 'none';
     }
 
-    // みじかいはり (じしん)
-    if (showHourHand || highlightHour) {
-      const adjustedHour = hour % 12 || 12;
-      const hourAngle = ((adjustedHour + minute / 60) / 12) * (2 * Math.PI) - (Math.PI / 2);
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(
-        centerX + (radius * 0.5) * Math.cos(hourAngle),
-        centerY + (radius * 0.5) * Math.sin(hourAngle)
-      );
-      ctx.lineWidth = highlightHour ? 8 + 4 * animationFactor : 8; // アニメーションをてきよう
-      ctx.strokeStyle = highlightHour ? '#f97316' : '#475569'; // ハイライト
-      ctx.stroke();
+    // レベルに応じて新しい時間を生成
+    function generateNewTime(level) {
+        const hour = Math.floor(Math.random() * 12) + 1;
+        let minute = 0;
+
+        switch (level) {
+            case 1:
+                minute = 0;
+                break;
+            case 2:
+                minute = 30;
+                break;
+            case 3:
+                minute = Math.floor(Math.random() * 12) * 5;
+                break;
+            case 4:
+                // レベル4では、ランダムにレベル1〜3のいずれかの時間を生成
+                const subLevel = Math.floor(Math.random() * 3) + 1;
+                generateNewTime(subLevel); // 再帰的に時間生成
+                gameData.userTime = { hour: 0, minute: 0 }; // ユーザーの針をリセット
+                return;
+            default:
+                break;
+        }
+
+        gameData.targetTime = { hour, minute };
+        console.log(`正解: ${hour}時${minute}分`); // デバッグ用
     }
 
-    // ながいはり (ふんしん)
-    if (showMinuteHand || highlightMinute) {
-      const minuteAngle = ((minute / 60) * (2 * Math.PI)) - (Math.PI / 2);
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(
-        centerX + (radius * 0.7) * Math.cos(minuteAngle),
-        centerY + (radius * 0.7) * Math.sin(minuteAngle)
-      );
-      ctx.lineWidth = highlightMinute ? 5 + 4 * animationFactor : 5; // アニメーションをてきよう
-      ctx.strokeStyle = highlightMinute ? '#f97316' : '#ef4444'; // ハイライト
-      ctx.stroke();
+    // 答え合わせの処理 (レベル1〜3)
+    function checkAnswer() {
+        const input = answerInputEl.value.trim();
+        const regex = /(\d+)\s*時(?:\s*(\d+)\s*分)?/;
+        const match = input.match(regex);
+
+        if (!match) {
+            showFeedback('形式が違います。「10時30分」のように入力してください。', 'red');
+            return;
+        }
+
+        const userHour = parseInt(match[1], 10);
+        const userMinute = match[2] ? parseInt(match[2], 10) : 0;
+
+        const { hour: targetHour, minute: targetMinute } = gameData.targetTime;
+
+        if (userHour === targetHour && userMinute === targetMinute) {
+            gameData.score++;
+            scoreEl.textContent = gameData.score;
+            showFeedback('正解です！', 'green');
+            nextQuestionButton.style.display = 'block';
+            checkAnswerButton.style.display = 'none';
+        } else {
+            showFeedback(`残念！正解は ${targetHour}時${targetMinute}分 です。`, 'red');
+            nextQuestionButton.style.display = 'block';
+            checkAnswerButton.style.display = 'none';
+        }
     }
 
-    // ちゅうおうのえん
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = '#ef4444';
-    ctx.fill();
+    // 答え合わせの処理 (レベル4)
+    function checkLevel4Answer() {
+        const { hour: targetHour, minute: targetMinute } = gameData.targetTime;
+        const { hour: userHour, minute: userMinute } = gameData.userTime;
+        
+        // 5分刻みで比較
+        const userMinuteRounded = Math.round(userMinute / 5) * 5;
 
-    if (highlightHour || highlightMinute) {
-      animationFrameRef.current = requestAnimationFrame(drawClock);
+        if (targetHour === userHour && targetMinute === userMinuteRounded) {
+            gameData.score++;
+            scoreEl.textContent = gameData.score;
+            showFeedback('正解です！', 'green');
+        } else {
+            showFeedback(`残念！正解は ${targetHour}時${targetMinute}分 です。`, 'red');
+        }
+        nextQuestionButton.style.display = 'block';
     }
-  };
 
-  useEffect(() => {
-    // びょうがをかいし
-    animationFrameRef.current = requestAnimationFrame(drawClock);
-    // クリーンアップ
-    return () => cancelAnimationFrame(animationFrameRef.current);
-  }, [hour, minute, size, showHourHand, showMinuteHand, highlightHour, highlightMinute, highlightMinuteNum]);
 
-  // レベル3よう：はりのドラッグきのう
-  const handleMove = (e) => {
-    if (!isDraggingHour && !isDraggingMinute) return;
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX || (e.touches && e.touches[0].clientX);
-    const y = e.clientY || (e.touches && e.touches[0].clientY);
-    if (!x || !y) return;
-
-    const dx = x - (rect.left + size / 2);
-    const dy = y - (rect.top + size / 2);
-    const angle = Math.atan2(dy, dx) + Math.PI / 2;
-    const normalizedAngle = (angle + 2 * Math.PI) % (2 * Math.PI);
-
-    if (isDraggingHour) {
-      const newHour = Math.floor(normalizedAngle / (2 * Math.PI) * 12) + 1;
-      setUserTime(prev => ({ ...prev, hour: newHour }));
-    } else if (isDraggingMinute) {
-      const newMinute = Math.round(normalizedAngle / (2 * Math.PI) * 60);
-      setUserTime(prev => ({ ...prev, minute: newMinute - (newMinute % 5) })); // 5ふんごとのきざみ
+    // UIの更新
+    function updateUI() {
+        const level = gameData.level;
+        if (level === 4) {
+            const { hour, minute } = gameData.targetTime;
+            const minuteText = minute > 0 ? `${minute}分` : '';
+            questionEl.textContent = `${hour}時${minuteText}に合わせてね！`;
+        } else {
+            const { hour, minute } = gameData.targetTime;
+            const minuteText = minute > 0 ? `${minute}分` : '';
+            questionEl.textContent = `今何時？ (${hour}時${minuteText})`;
+            answerInputEl.value = '';
+        }
+        // レベル4では針を動かすので、毎回時計を再描画
+        if (level === 4) {
+             drawClock(gameData.userTime);
+        } else {
+            drawClock(gameData.targetTime);
+        }
     }
-  };
 
-  const handleEnd = () => {
-    setIsDraggingHour(false);
-    setIsDraggingMinute(false);
-  };
-
-  const handleDown = (e) => {
-    if (!isDraggable) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX || (e.touches && e.touches[0].clientX);
-    const y = e.clientY || (e.touches && e.touches[0].clientY);
-    const dx = x - (rect.left + size / 2);
-    const dy = y - (rect.top + size / 2);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    // みじかいはりのはんい
-    if (dist < size * 0.5 && dist > size * 0.2) {
-      setIsDraggingHour(true);
+    // メッセージ表示
+    function showFeedback(message, color) {
+        feedbackEl.textContent = message;
+        feedbackEl.style.color = color;
     }
-    // ながいはりのはんい
-    else if (dist < size * 0.7 && dist > size * 0.5) {
-      setIsDraggingMinute(true);
+
+    // 時計の描画
+    function drawClock(time = { hour: 0, minute: 0 }) {
+        // キャンバスのクリア
+        ctx.clearRect(-radius, -radius, canvas.width, canvas.height);
+        
+        // 外枠
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.9, 0, 2 * Math.PI);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#6366f1';
+        ctx.stroke();
+
+        // センターの点
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.04, 0, 2 * Math.PI);
+        ctx.fillStyle = '#334155';
+        ctx.fill();
+
+        // 数字の描画
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold ' + radius * 0.15 + 'px Inter';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        for (let num = 1; num <= 12; num++) {
+            const angle = (num * Math.PI / 6) - Math.PI / 2;
+            const x = radius * 0.75 * Math.cos(angle);
+            const y = radius * 0.75 * Math.sin(angle);
+            ctx.fillText(num.toString(), x, y);
+        }
+        
+        // 針の描画
+        const hour = time.hour;
+        const minute = time.minute;
+        drawHand(
+            (hour % 12) * Math.PI / 6 + (minute * Math.PI / (6 * 60)) - Math.PI / 2,
+            radius * 0.5,
+            radius * 0.05,
+            '#334155'
+        );
+        drawHand(
+            minute * Math.PI / 30 - Math.PI / 2,
+            radius * 0.8,
+            radius * 0.03,
+            '#475569'
+        );
     }
-  };
-
-  useEffect(() => {
-    if (isDraggable) {
-      const canvas = canvasRef.current;
-      canvas.addEventListener('mousemove', handleMove);
-      canvas.addEventListener('mouseup', handleEnd);
-      canvas.addEventListener('touchmove', handleMove);
-      canvas.addEventListener('touchend', handleEnd);
-      return () => {
-        canvas.removeEventListener('mousemove', handleMove);
-        canvas.removeEventListener('mouseup', handleEnd);
-        canvas.removeEventListener('touchmove', handleEnd);
-        canvas.removeEventListener('touchend', handleEnd);
-      };
+    
+    // 針を描くヘルパー関数
+    function drawHand(angle, length, width, color) {
+        ctx.beginPath();
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.moveTo(0, 0);
+        ctx.rotate(angle);
+        ctx.strokeStyle = color;
+        ctx.lineTo(0, -length);
+        ctx.stroke();
+        ctx.rotate(-angle);
     }
-  }, [isDraggable, isDraggingHour, isDraggingMinute, size, setUserTime]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="relative rounded-full shadow-2xl bg-white transition-all duration-300 ease-in-out"
-      style={{ width: size, height: size }}
-      onMouseDown={handleDown}
-      onTouchStart={handleDown}
-    >
-      <canvas ref={canvasRef} width={size} height={size}></canvas>
-    </div>
-  );
-};
+    // レベル4の操作ロジック
+    function handleMouseDown(e) {
+        if (gameData.level !== 4) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - radius;
+        const y = e.clientY - rect.top - radius;
+        const angle = Math.atan2(y, x);
 
+        const hourAngle = (gameData.userTime.hour % 12) * Math.PI / 6 + (gameData.userTime.minute * Math.PI / (6 * 60)) - Math.PI / 2;
+        const minuteAngle = gameData.userTime.minute * Math.PI / 30 - Math.PI / 2;
 
-// かいとうボタンコンポーネント (レベル1, 2よう)
-const AnswerButtons = ({ type, onSelect }) => {
-  const answers = type === 'hour'
-    ? Array.from({ length: 12 }, (_, i) => i + 1)
-    : Array.from({ length: 12 }, (_, i) => i * 5);
+        const dist = Math.sqrt(x * x + y * y);
+        if (dist < radius * 0.65) { // 短い針の範囲
+            gameData.activeHand = 'hour';
+            gameData.isDragging = true;
+        } else if (dist < radius * 0.85) { // 長い針の範囲
+            gameData.activeHand = 'minute';
+            gameData.isDragging = true;
+        }
+    }
 
-  const [selected, setSelected] = useState(null);
+    function handleMouseMove(e) {
+        if (gameData.level !== 4 || !gameData.isDragging) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left - radius;
+        const y = e.clientY - rect.top - radius;
+        let angle = Math.atan2(y, x) + Math.PI / 2;
+        if (angle < 0) angle += 2 * Math.PI;
 
-  const handleClick = (value) => {
-    setSelected(value);
-    const hour = type === 'hour' ? value : null;
-    const minute = type === 'hour' ? 0 : value;
-    onSelect(hour, minute);
-  };
+        if (gameData.activeHand === 'hour') {
+            const newHour = Math.floor(angle * 12 / (2 * Math.PI)) % 12;
+            gameData.userTime.hour = newHour === 0 ? 12 : newHour;
+            // 短い針を動かしたら長い針も少し動かす
+            const minuteAngleOffset = (gameData.userTime.minute * Math.PI / (6 * 60));
+            gameData.userTime.hour = Math.floor((angle - minuteAngleOffset) * 12 / (2 * Math.PI)) + 1;
+            if (gameData.userTime.hour > 12) gameData.userTime.hour -= 12;
+            if (gameData.userTime.hour <= 0) gameData.userTime.hour += 12;
 
-  return (
-    <div className="flex flex-col items-center w-full">
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 w-full max-w-lg">
-        {answers.map((value) => (
-          <button
-            key={value}
-            onClick={() => handleClick(value)}
-            className={`p-4 text-xl font-bold rounded-xl shadow-md transition-all duration-200
-              ${selected === value ? 'bg-indigo-600 text-white transform scale-105' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
-          >
-            {value}{type === 'hour' ? 'じ' : 'ふん'}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
+        } else if (gameData.activeHand === 'minute') {
+            const newMinute = Math.floor(angle * 60 / (2 * Math.PI));
+            gameData.userTime.minute = newMinute;
+            // 長い針を動かしたら短い針も少し動かす
+            const newHour = (gameData.userTime.hour % 12) + newMinute / 60;
+            const hourDisplay = Math.floor(newHour);
+            gameData.userTime.hour = hourDisplay === 0 ? 12 : hourDisplay;
+        }
 
+        drawClock(gameData.userTime);
+    }
 
-// CSSアニメーション
-const style = document.createElement('style');
-style.innerHTML = `
-@keyframes pulse-text {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.9; }
-}
-.animate-pulse-text {
-  animation: pulse-text 2s infinite;
-}
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out forwards;
-}
-`;
-document.head.appendChild(style);
+    function handleMouseUp(e) {
+        if (gameData.level !== 4 || !gameData.isDragging) return;
+        gameData.isDragging = false;
+        gameData.activeHand = null;
+        // 5分刻みに丸める
+        gameData.userTime.minute = Math.round(gameData.userTime.minute / 5) * 5;
+        // 針を丸めた位置に再描画
+        drawClock(gameData.userTime);
+        checkLevel4Answer();
+    }
+</script>
 
-// DOMツリーが完全に構築されてからReactアプリをレンダリングする
-document.addEventListener('DOMContentLoaded', () => {
-  let container = document.getElementById('root');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'root';
-    document.body.appendChild(container);
-  }
-
-  try {
-    const root = createRoot(container);
-    root.render(<App />);
-  } catch (e) {
-    console.error("React application rendering failed:", e);
-  }
-});
+</body>
+</html>
